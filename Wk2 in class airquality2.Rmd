@@ -1,0 +1,94 @@
+---
+title: "Week 2 inclass"
+author: "Jeanette Henry"
+date: "January 22, 2018"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(data.table)
+library(DMwR)
+library(corrplot)
+
+
+fn <- 'C:/MSDS/MachL/Wk2/AirQualityUCI.csv'
+aq<- fread(fn)
+aqog<-fread(fn)
+
+```
+
+
+
+```{r aq}
+str(aq)
+aq = as.data.frame(sapply(aq, as.numeric))
+str(aq)
+```
+NO2GT is now in numerics so we can use k nearest neighbor on it
+``` {r knn}
+summary(aq)
+aq$V16 <- NULL
+aq$V17<- NULL
+aq$Date<- NULL
+aq$Time<-NULL
+aq$AH<-NULL
+aq$RH<-NULL
+aq$T<-NULL
+aq$`C6H6(GT)`<-NULL
+
+
+str(aq)
+summary(aq)
+
+
+
+hist(aq$`NO2(GT)`)
+kaq<- knnImputation(aq)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r original hist}
+hist(aq$`NO2(GT)`)
+```
+
+```{R knn hist}
+summary(kaq)
+hist(kaq$`NO2(GT)`)
+#this is the histogram with the k nearest neighbors completed
+
+```
+
+Now fill the NAs with the means, not using k nearest neighbors
+
+```{r mean}
+str(aq)
+summary(aq)
+
+library(zoo)
+df2<-na.aggregate(aq)
+NA2mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+###replace(df2, TRUE, lapply(df2, NA2mean))
+df2[] <- lapply(df2, NA2mean)
+
+summary(df2)
+
+```
+Now df2 is out data frame with the NA's replaced with the means
+
+``` {r meanhist}
+
+hist(df2$`NO2(GT)`)
+
+```
+
+plot
+
+use original data table with the missing values to mask
+use is.na to find the missing values
+
+filter missing in original and grab that column and compare to where we imputted it 

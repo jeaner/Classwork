@@ -1,0 +1,245 @@
+---
+title: "Trees"
+author: "Jeanette Henry"
+date: "February 7, 2018"
+output: word_document
+---
+Banking data set
+From http://archive.ics.uci.edu/ml/datasets/Bank+Marketing
+Attribute Information:
+
+Input variables:
+# bank client data:
+#1 - age 
+(numeric)
+#2 - job : type of job 
+(categorical: 'admin.','blue-collar','entrepreneur',
+'housemaid','management','retired','self-employed',
+'services','student','technician','unemployed',
+'unknown')
+#3 - marital : marital status 
+(categorical: 'divorced','married','single',
+'unknown'; note: 'divorced' means divorced or widowed)
+#4 - education 
+(categorical: 'basic.4y','basic.6y','basic.9y',
+'high.school','illiterate','professional.course',
+'university.degree','unknown')
+#5 - default: has credit in default? 
+(categorical: 'no','yes','unknown')
+#6 - housing: has housing loan? 
+(categorical: 'no','yes','unknown')
+#7 - loan: has personal loan? 
+(categorical: 'no','yes','unknown')
+related with the last contact of the current campaign:
+#8 - contact: contact communication type
+(categorical: 'cellular','telephone') 
+#9 - month: last contact month of year 
+(categorical: 'jan', 'feb', 'mar', ..., 'nov', 'dec')
+#10 - day_of_week: last contact day of the week
+(categorical: 'mon','tue','wed','thu','fri')
+#11 - duration: last contact duration, in seconds 
+(numeric). Important note: this attribute highly
+affects the output target (e.g., if duration=0 then
+y='no'). Yet, the duration is not known before a call
+is performed. Also, after the end of the call y is
+obviously known. Thus, this input should only be
+included for benchmark purposes and should be
+discarded if the intention is to have a realistic
+predictive model.
+
+#other attributes:
+#12 - campaign: number of contacts performed during this
+campaign and for this client
+(numeric, includes last contact)
+#13 - pdays: number of days that passed by after the client
+was last contacted from a previous campaign 
+(numeric; 999 means client was not previously contacted)
+#14 - previous: number of contacts performed before this
+campaign and for this client (numeric)
+#15 - poutcome: outcome of the previous marketing campaign 
+(categorical: 'failure','nonexistent','success')
+
+social and economic context attributes
+#16 - emp.var.rate: employment variation rate - 
+quarterly indicator (numeric)
+#17 - cons.price.idx: consumer price index - 
+monthly indicator (numeric) 
+#18 - cons.conf.idx: consumer confidence index - 
+monthly indicator (numeric) 
+#19 - euribor3m: euribor 3 month rate -
+daily indicator (numeric)
+#20 - nr.employed: number of employees - 
+quarterly indicator (numeric)
+
+Output variable (desired target):
+#21 - y - has the client subscribed a term deposit? 
+(binary: 'yes','no')
+
+C:/MSDS/MachL/Wk2/heart.disease.data.clean.csv
+```{r setup, include=FALSE}
+library(data.table)
+library(caret)
+library(parallel)
+library(rpart)
+library(dplyr)  # so we can use the pipe operator (>%>)
+library(ggplot2)
+library(xgboost)
+
+filename <- 'C:/MSDS/MachL/Wk4/bank.csv'
+bank.dt <- fread(filename, stringsAsFactors = T)
+str(bank.dt)
+```
+
+## Data 
+look through the data
+
+
+```{r data}
+str(bank.dt)
+#y is the target
+#duration must be removed according to the data set info
+bank.dt$duration<-NULL
+str(bank.dt)
+summary(bank.dt)
+
+
+#pdays says 999 means client was not previously contacted
+summary(bank.dt$pdays)
+#the max is not 999 and there are a lot of -1 so I assume that means
+#-1 is the actual indicator that they have never been contacted before.
+#head(bank.dt)
+hist(bank.dt$pdays,
+     ylim=c(0,300))
+boxplot(bank.dt$pdays)
+bank.dt$pdays[bank.dt$pdays == -1]<- 999
+#head(bank.dt)
+#summary(bank.dt$pdays)
+#now the summary makes more sense and the boxplot shows less outliers
+boxplot(bank.dt$pdays)
+hist(bank.dt$pdays,
+     ylim=c(0,300))
+#summary(bank.dt)
+hist(bank.dt$age)
+
+barplot(prop.table(table(bank.dt$marital))) #most individuals were married
+barplot(table(bank.dt$job), las=2) #top jobs are blue-collar, management, and technicians
+barplot(table(bank.dt$y))
+```
+A lot more people say no than yes!
+
+## Train sets
+
+Uses the caret library to run random forrest training
+
+```{r pressure}
+set.seed(223)
+dim(bank.dt)
+tr.idxs <- createDataPartition(bank.dt$y, p = 0.8)$Resample1
+train <- bank.dt[tr.idxs]
+test <- bank.dt[-tr.idxs]
+#now the data is divided into training and test sets
+trControl <- trainControl(method = 'repeatedcv',
+                          number = 3,
+                          repeats = 4)
+
+rf.model <- train(y ~ .,
+                  data = train,
+                  method = 'rf',
+                  trControl = trControl, #defined above
+                  ntree = 250,  # makes it run a bit faster
+                  tuneGrid = expand.grid(mtry = c(4, 8, 12)))
+#rf for random forrest
+#sq.rt of the 16 features is 4 - how we decide tuneGrid
+```
+
+```{r model}
+rf.model
+```
+#Model overview 
+the accuracy is highest with the mtry=4
+
+```{r evaluate}
+tr.preds <- predict(rf.model, train)
+postResample(tr.preds, train$y)
+
+te.preds <- predict(rf.model, test)
+postResample(te.preds, test$y)
+
+confusionMatrix(te.preds, test$y)
+```
+##Hyperparameters
+The training model has an accuracy of .933 but a test of only .897
+We want to decrease our variance
+we can do this with the hyperparameters:
+-nodesize 
+-maxnodes
+
+
+```{r model2}
+rf.model2 <- train(y ~ .,
+                  data = train,
+                  method = 'rf',
+                  trControl = trControl, 
+                  ntree = 250, 
+                  nodesize= 13,
+                  maxnodes= 13,
+                  tuneGrid = expand.grid(mtry = c(4, 8, 12)))
+rf.model2
+tr.preds2 <- predict(rf.model2, train)
+postResample(tr.preds2, train$y)
+
+te.preds2 <- predict(rf.model2, test)
+postResample(te.preds2, test$y)
+confusionMatrix(te.preds2, test$y)
+```
+Train:0.895
+Test: 0.897
+It is good that they are both similar!
+But the higher for both the better:
+```{r model3}
+rf.model3 <- train(y ~ .,
+                  data = train,
+                  method = 'rf',
+                  trControl = trControl, 
+                  ntree = 250, 
+                  nodesize= 13,
+                  maxnodes= 18,
+                  tuneGrid = expand.grid(mtry = c(4, 8, 12)))
+rf.model3
+tr.preds3 <- predict(rf.model3, train)
+postResample(tr.preds3, train$y)
+
+te.preds3 <- predict(rf.model3, test)
+postResample(te.preds3, test$y)
+```
+##Model #3
+We now have both traing and test accuracy at .897
+
+```{r confusion}
+
+confusionMatrix(te.preds3, test$y)
+```
+
+Confusion matrix shows that there are 798 true negatives but only 13 true positives and 91 false negatives. 
+THis is due to class imbalance.
+But 13 true positives is better than any of the last models
+```{r plots}
+varImp(rf.model3, scale = F)
+varImpPlot(rf.model3$finalModel, scale = F)
+
+
+```
+
+We now see that previous ad campaigns have a lot of importance
+
+#15 - poutcome:
+outcome of the previous marketing campaign 
+(categorical: 'failure','nonexistent','success')
+
+```{r poutcome}
+barplot(table(bank.dt$poutcome))
+summary(bank.dt$poutcome)
+
+```
+We see that the group with successful outcomes of previouse marketing campaigns is the smallest of this category.
+However it makes sense that people open to past campaigns will be more open to starting an account.

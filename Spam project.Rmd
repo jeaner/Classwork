@@ -1,0 +1,26 @@
+---
+title: "spam"
+author: "Jeanette Henry"
+date: "January 29, 2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+library(data.table)
+filename <- 'C:/MSDS/MachL/Wk3/dtm.csv'
+spam.dt <- fread(filename, nrows = 1000)
+#sample subset of 1,000 rows
+
+
+
+
+
+
+
+
+
+
+
+
+
+```

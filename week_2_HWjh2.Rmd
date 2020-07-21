@@ -1,0 +1,159 @@
+---
+title: "week 2 Homework"
+author: "Jeanette Henry"
+output: word_document
+---
+
+Week 2 
+Use the cleaned heart disease data set -- either use the data you cleaned, or the heart.disease.data.clean.csv file under week 2 (topic 2) content.
+
+Our goal is to predict if someone has heart disease based on the features we have.
+
+Here is the simplest way to do this assignment:
+
+The 'num' column is our target variable we are trying to predict.   0 means little or no heart disease (constriction of blood vessels due to plaque buildup), 1-4 is increasing amounts of blood vessel constriction (4 means the worst case of heart disease).
+
+For the num column, leave the 0s as 0, and make anything that is 1 through 4 equal to 1.  You can filter the rows of a data.table like this:
+  heart.dt[num >=1, ]
+to get the rows where num is greater than or equal to 1.  Then set the value of 'num' in those rows to 1.  I recommend using the := operator to set the num row by reference.
+Split up the data into train/test datasets, I recommend using the createDataPartition() function from the caret library.
+Tune the k hyperparameter to the optimal value and support it with data (elbow plot).  Or at least try 3 values of k and compare the performance on the test set.
+Report accuracy and/or other scoring metrics (confusion matrix, R^2, SSE, etc) on train and test data sets.
+Make at least 2 plots. 
+
+```{r check_out_data}
+library(caret)
+library(data.table)
+library(ggplot2)
+set.seed(223) 
+filename <- 'C:/MSDS/MachL/Wk2/heart.disease.data.clean.csv'
+heart.dt <- fread(filename)
+
+str(heart.dt)
+col.labels <- c('age',
+                'sex',
+                'chest.pain.type',
+                'resting.blood.pressure',
+                'cholesterol',
+                'num.cigs.per.day',
+                'years.as.smoker',
+                'fasting.blood.sugar',
+                'family.history.heart.disease',
+                'resting.ecg.results',
+                'max.heart.rate.exercise',
+                'exercise.induced.angina',
+                'blood.disorder',  # Thalassemia I think
+                'heart.disease')
+
+names(heart.dt) <- col.labels
+heart.dtog <- heart.dt
+```
+
+
+``` {r convert}
+heart.dt[heart.disease > 0, heart.disease:=1]
+heart.dt[, heart.disease:=as.factor(heart.disease)]
+levels(heart.dt$heart.disease) <- c('no', 'yes')
+summary(heart.dt)
+dim(heart.dt)
+# 13 features -- we will need this for a hyperparameter
+```
+
+Create a train/test split with 80% of the data going to training.
+```{r train_test_split}
+# create the train indices with createDataPartition
+tr.idxs <- createDataPartition(heart.dt$heart.disease, p = 0.8)$Resample1
+train <- heart.dt[tr.idxs]
+test <- heart.dt[-tr.idxs]
+```
+
+Fit the model here.  We use caret with repeatedcv to minimize and average out any sort of noise we might encounter due to the train/validation splits.
+```{r fit_model}
+trControl <- trainControl(method  = "repeatedcv",
+                          number  = 3,
+                          repeats = 10,
+                          classProbs=TRUE)
+                          #summaryFunction = twoClassSummary)
+set.seed(223)
+fit <- train(heart.disease ~ .,
+             data=train,
+             method= 'knn',
+             tuneGrid = expand.grid(k = 1:20),
+             trControl= trControl,
+             preProcess= c("center", "scale"),
+             metric= "Accuracy")
+
+
+print(fit)
+plot(fit)
+```
+
+
+
+The accuracy plot ends up with around 12 being optimal for k. giving an accuracy of .791
+
+
+```{r conf_matrix}
+# 12 for k seems to be best
+preds <- predict(fit, test)
+confusionMatrix(preds, test$heart.disease, positive = 'yes')
+```
+Test accuracy of 0.8393 with only 9 misclassified, much better than the no information rate of 0.5536
+
+```{r varImp}
+filename <- 'C:/MSDS/MachL/Wk2/heart.disease.data.clean.csv'
+heart.dtog <- fread(filename)
+
+#str(heart.dtog)
+col.labels <- c('age',
+                'sex',
+                'chest.pain.type',
+                'resting.blood.pressure',
+                'cholesterol',
+                'num.cigs.per.day',
+                'years.as.smoker',
+                'fasting.blood.sugar',
+                'family.history.heart.disease',
+                'resting.ecg.results',
+                'max.heart.rate.exercise',
+                'exercise.induced.angina',
+                'blood.disorder',  # Thalassemia I think
+                'heart.disease')
+
+names(heart.dtog) <- col.labels
+str(heart.dtog)
+
+varImp(fit, scale = F)
+#blood.disorder,chest.pain.type, and max.hear.rate.exercise are big factors
+str(heart.dt)
+#featplot <- ggplot(heart.dtog, aes(x=blood.disorder, y=max.heart.rate.exercise, color=heart.disease)) + 
+#  geom_point() + 
+#  scale_color_gradient(low="blue", high="red")
+#featplot
+#too much overlap, add jitter to points
+featplot <- ggplot(heart.dtog, aes(x=chest.pain.type, 
+                                    y=max.heart.rate.exercise,
+                                    color=heart.disease)) + 
+  geom_jitter() + 
+  scale_color_gradient(low="blue", high="red")
+featplot
+library(plotly)
+heart.dtog[, blood.disorder:=as.numeric(blood.disorder)]
+heart.dtog[, blood.disorder:=jitter(blood.disorder)]
+heart.dtog[, chest.pain.type:=as.numeric(chest.pain.type)]
+heart.dtog[, chest.pain.type:=jitter(chest.pain.type)]
+str(heart.dtog)
+featplot2 <- plot_ly(heart.dtog, 
+                    x=~chest.pain.type, 
+                    y=~blood.disorder,
+                    z=~max.heart.rate.exercise, 
+                    marker = list
+                    (
+                    color=~heart.disease,
+                    colorscale =c('#FFE1A1', '#683531'),
+                    showscale=TRUE
+                    ))
+
+```
+
+

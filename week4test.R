@@ -1,0 +1,8 @@
+library(data.table)
+library(agricolae)
+data(sweetpotato)
+attach(sweetpotato)
+comparison<-waerden.test(yield,virus,alpha=0.01,group=TRUE)
+summary(comparison)
+comparisonF<-waerden.test(yield,virus,alpha=0.01,group=FALSE)
+print(comparisonF)

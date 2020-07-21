@@ -1,0 +1,61 @@
+---
+title: "week 2 Homework"
+author: "Nate George"
+output: pdf_document
+---
+
+Week 2 KNN quiz:
+
+* Use the iris dataset to create train and test sets (80% of data as train)
+* Find the best k for KNN by trying k from 1 through 20 on the train set
+* Plot k vs accuracy
+* Make a confusion matrix of the results on the test set
+* Write at least 1 sentence explaining/interpreting the confusion matrix
+
+```{r check_out_data}
+set.seed(223) 
+str(iris)
+```
+
+Create a train/test split with 80% of the data going to training.
+```{r train_test_split}
+# create the train indices with createDataPartition
+library(caret)
+train.indices <- createDataPartition(iris$Species, p = 0.8)$Resample1
+library(data.table)
+iris.dt <- as.data.table(iris)
+train <- iris.dt[train.indices, ]
+# this doesn't work with data.frames, only data.tables
+test <- iris.dt[-train.indices]
+```
+
+Fit the model here.  We use caret with repeatedcv to minimize and average out any sort of noise we might encounter due to the train/validation splits.
+```{r fit_model}
+trControl <- trainControl(method  = "repeatedcv",
+                          number  = 3,
+                          repeats = 30)
+
+fit <- train(Species ~ .,
+             method     = 'knn',
+             tuneGrid   = expand.grid(k = 1:20),
+             trControl  = trControl,
+             preProcess = c("center", "scale"),
+             metric     = "Accuracy",
+             data       = train)
+
+
+print(fit)
+```
+
+The accuracy plot ends up with around 7-9 being optimal for k.  This changes depending on your random seed.
+```{r accuracy_plot}
+plot(fit$results$k, fit$results$Accuracy)
+```
+
+```{r conf_matrix}
+# 7 or 8 for k seems to be best
+preds <- predict(fit, test)
+confusionMatrix(preds, test$Species)
+```
+
+It looks like all classes were perfectly classified except versicolor.  This one had one misclassification as virginica.

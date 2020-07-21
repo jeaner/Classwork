@@ -1,0 +1,69 @@
+---
+title: "week 2 quiz solution"
+author: 
+output: pdf_document
+---
+
+Week 2 KNN review quiz:
+
+* Use the iris dataset to create train and test sets (80% of data as train)
+* Find the best k for KNN by trying k from 1 through 20 on the train set
+* Plot k vs accuracy
+* Make a confusion matrix of the results on the test set
+* Write at least 1 sentence explaining/interpreting the confusion matrix
+
+```{r check_out_data}
+# maybe you want to do something here for reproducibility?  skip if you don't know it right away
+str(iris)
+```
+
+Create a train/test split with 80% of the data going to training.
+```{r train_test_split}
+# create the train indices with createDataPartition
+library(caret)
+train.indices <- createDataPartition(iris$Species, p=0.8)$Resample1
+# convert the iris dataset to a data table so we can easily create train/test
+library(data.table)
+set.seed(23)
+iris.dt <- as.data.table(iris)
+train.indices <- createDataPartition(iris.dt, p=0.8, list=FALSE)
+
+# select the train and test sets here --  getting an error?
+# print out your train.indices variable to see what you're missing
+train <- iris.dt[train.indices,]
+test <- iris.dt[-train.indices,]
+
+
+dim(train); dim(test)
+
+```
+
+Fit the model here.  We use caret with repeatedcv to minimize and average out any sort of noise we might encounter due to the train/validation splits.
+```{r fit_model}
+# use cv or repeatedcv
+trControl <- trainControl(method ="repeatedcv", number=3, repeats=50 )
+set.seed(23)
+?getModelInfo
+fit <- train(Species ~ .,
+             method     = "knn" ,
+             trControl  =,
+             preProcess = c("center", "scale"),
+             metric     = "Accuracy",
+             data       = train)
+
+
+print(fit)
+```
+
+
+```{r accuracy_plot}
+# plot accuracy vs k here
+plot()
+```
+
+```{r conf_matrix}
+# predict on the test set and make a confusion matrix
+# don't forget to write a sentence explaining/interpreting the confusion matrix
+preds <- predict()
+confusionMatrix()
+```

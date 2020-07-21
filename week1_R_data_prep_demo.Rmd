@@ -1,0 +1,97 @@
+---
+title: "week1_R_data_prep_demo"
+author: "Nate George"
+date: "January 9, 2018"
+output: html_document
+---
+
+We are going to examine the auto mpg dataset from here:
+
+as an example for how to prepare data.
+
+First we'll load the libraries we will need (message=F will hide messages from the package loading):
+
+```{r load_libs, message=F}
+library(data.table)
+library(DMwR)
+library(corrplot)
+```
+
+message=F so that we don't get messages about loading different libraries in the PDF
+echo=F if you want to hide an entrie code block
+Next we'll load the data and check it out:
+
+```{r load_data}
+fn <- 'C:/MSDS/MachL/Wk1/auto-mpg.data'
+
+# as.is leaves characters as characters instead of converting to factors, so we can substitute NA for ?
+df <- read.table(fn, as.is = T)
+auto.dt <- as.data.table(df)
+str(auto.dt)
+```
+
+V4 is the horsepower column, and is a string because there are some missing values represented as '?'.
+First we're going to replace the V-names with more accurate and easy-to-use names:
+
+```{r set_names}
+fn <- 'C:/MSDS/MachL/Wk1/auto-mpg.names'
+
+auto.names <- readLines(fn)
+auto.names
+
+# gets the name from the list of names using regular expressions
+get_name <- function(x) gsub('\\s+\\d+\\.\\s+(.+):\\s+.+', '\\1', x)
+short.names <- unlist(lapply(auto.names, FUN = get_name))
+short.names <- unlist(lapply(short.names, FUN = function(x) gsub('\\s', '.', x)))
+short.names
+
+names(auto.dt) <- short.names
+```
+
+Now we want to replace missing values with NA.  We can see horsepower is the only colunm with missing values, and there are 6 of them.
+
+```{r repl_missing}
+auto.dt[auto.dt == '?'] <- NA
+str(auto.dt)
+```
+
+There are a ton of car names, so we will drop that column, and we need to convert the horespower to numeric.
+
+```{r set_cols}
+auto.dt[, horsepower:=as.numeric(horsepower)]
+auto.dt[, car.name:=NULL]
+str(auto.dt)
+```
+
+Now we will replace missing values by imputing them with K-nearest neighbors.
+```{r imputation}
+auto.dt.nona <- knnImputation(auto.dt)
+# if you're curious, see what the nas were replaced with
+auto.dt.nona[is.na(auto.dt$horsepower)]$horsepower
+
+fwrite(auto.dt.nona, 'C:/MSDS/MachL/Wk2/auto.dt.nona.csv')
+```
+
+Finally let's do some EDA on the data.  First a correlation plot, which shows all the variables to be highly correlated to mpg.
+```{r corrplot}
+corrplot(cor(auto.dt.nona))
+```
+
+There are not many 3- and 5-cyliner engines in the dataset, so we may want to throw those out.
+
+```{r histograms}
+dt.names <- names(auto.dt.nona)
+for (i in seq(dim(auto.dt)[2])) {
+  coldata <- auto.dt.nona[, get(dt.names[i])]
+  n.levels <- nlevels(as.factor(coldata))
+  if (n.levels <= 10) {
+    barplot(table(coldata), xlab = dt.names[i])
+  } else {
+    hist(coldata, main = NULL, xlab = dt.names[i])
+  }
+  # add newlines so the plots all show up
+  cat('\n\n')
+}
+
+
+```

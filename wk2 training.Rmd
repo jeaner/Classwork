@@ -1,0 +1,76 @@
+---
+title: "wk2 training"
+author: "Jeanette Henry"
+date: "January 22, 2018"
+output: word_document
+---
+
+```{r setup}
+library(data.table)
+library(caret)
+library(FNN)
+library(class)
+library(gmodels)
+
+fn <- 'C:/MSDS/MachL/Wk2/heart.disease.data.clean.csv'
+
+auto.dt <- fread(fn)
+```
+
+""	1. For the num column, leave the 0s as 0, and make anything that is 1 through 4 equal to 1.
+	You can filter the rows of a data.table like this:
+ heart.dt[num >=1, ]
+to get the rows where num is greater than or equal to 1.
+Then set the value of 'num' in those rows to 1.
+I recommend using the := operator to set the num row by reference.""
+
+```{r sort}
+heart.dt<- fread(fn)
+summary(heart.dt)
+hist(heart.dt$num, breaks = 4)
+heart.dt2 <- heart.dt
+heart.dt2[num>=1, num:=1]
+hist(heart.dt2$num)
+
+```
+"Split up the data into train/test datasets, I recommend using the createDataPartition() function from the caret library."
+```{r split}
+#1 set of data of targets to set apart from features
+targs <- heart.dt2[, num]
+# this selects all columns except mpg
+features <- heart.dt2[, -'num', with=F]
+
+set.seed(23)
+trainIdx = createDataPartition(targs, p = 0.8)$Resample1
+length(trainIdx)
+length(targs)
+tr.feats <- features[trainIdx]
+tr.targs <- targs[trainIdx]
+te.feats <- auto.dt[-trainIdx, -'num']
+te.targs <- auto.dt[-trainIdx]$num
+
+te.preds <- knn(tr.feats, te.feats, y = tr.targs, k = 3)
+te.preds
+
+library(gmodels)
+CrossTable(x=iris.testLabels,y=iris_pred, prop.chisq = FALSE)
+
+```
+
+``` {r kvalues}
+neighbors <- seq(2, 20)
+r2s <- c()  # r-squared values (coefficient of determination)
+sum.square.error <- c()  # sum of squares
+for (k in neighbors) {
+  preds <- knn.reg(train = tr.feats, y = tr.targs, k = k)
+  r2s <- c(r2s, preds$R2Pred)
+  sum.square.error <- c(sum.square.error, preds$PRESS)
+}
+
+# typically we look for an 'elbow' in the data, where the slope changes abruptly
+# it's pretty clearly at 5 here
+plot(neighbors, r2s)
+plot(neighbors, sum.square.error)
+
+
+```

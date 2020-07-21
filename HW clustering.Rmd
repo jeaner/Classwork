@@ -1,0 +1,101 @@
+---
+title: "HW Week 6 Clustering"
+author: "Jeanette Henry"
+date: "March 8, 2018"
+output: word_document
+---
+I will run kmeans clustering on the data about titanic survivors
+
+```{r "setup", warning=FALSE, message=FALSE}
+library(data.table)
+library(caret)
+library(ggplot2)
+library(raster)
+library(fastDummies)
+filename <- 'C:/MSDS/meth/wk6/titanic.csv'
+boat.dt<-fread(filename, stringsAsFactors = TRUE)
+str(boat.dt)
+boat.dt[, Name:=NULL]
+boat.dt[, Ticket:=NULL]
+boat.dt[, Cabin:=NULL]
+boat.dt[, PassengerId:=NULL]
+
+summary(boat.dt)
+#it would be hard to predict age using knnimputation so we will just delete the na's
+boat.dt<-na.omit(boat.dt)
+
+ggplot(stack(boat.dt), aes(x = ind, y = values)) +
+  geom_boxplot() + scale_y_continuous(trans = 'log10')
+boxplot(boat.dt)
+#remove the 1 major fare outlier seen in both boxplots (raster clamp)
+
+boat.dt$Fare <- clamp(boat.dt$Fare, upper=300)
+summary(boat.dt)
+boxplot(boat.dt)
+ggplot(stack(boat.dt), aes(x = ind, y = values)) +
+  geom_boxplot() + scale_y_continuous(trans = 'log10')
+```
+
+
+```{r "clust", warning=FALSE, message=FALSE}
+dummy.dt <- as.data.table(dummy_cols(boat.dt))
+factor.columns <- colnames(Filter(is.factor, dummy.dt))
+dummy.dt[, (factor.columns):=NULL] #get rid of the factors
+str(dummy.dt)
+
+
+wss <- c()
+clust.nums <- 2:20
+for (i in clust.nums) {
+  km <- kmeans(dummy.dt, centers = i)
+  wss <- c(wss, km$tot.withinss)
+}
+plot(clust.nums, wss)
+```
+
+I think 7 is a good bet on the plot
+
+```{r "kmeans", warning=FALSE, message=FALSE}
+set.seed(223)
+km <- kmeans(dummy.dt, center =7)
+km
+
+
+library(ggplot2)     
+qplot(jitter(boat.dt$Fare, 2),
+      jitter(boat.dt$Age, 2),
+      colour = as.factor(km$cluster),
+      alpha=I(0.5))
+```
+
+7 clusters of sizes:
+90, 84, 85, 30, 206, 201, 18
+
+
+```{r "explore", warning=FALSE, message=FALSE}
+km$centers
+```
+
+Here we see A matrix of cluster centers. These are the means of the groups across the categories.
+
+``` {R "fvis", warning=FALSE, message=FALSE}
+library(tidyverse)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering algorithms & visualization
+
+k3 <- kmeans(dummy.dt, centers = 3, nstart = 25)
+k5 <- kmeans(dummy.dt, centers = 5, nstart = 25)
+k10 <- kmeans(dummy.dt, centers = 10, nstart = 25)
+
+# plots to compare
+p3 <- fviz_cluster(k3, geom = "point",  data = dummy.dt, choose.vars = c("Fare", "Age")) + ggtitle("k = 3")
+p5 <- fviz_cluster(k5, geom = "point",  data = dummy.dt, choose.vars = c("Fare", "Age")) + ggtitle("k = 5")
+p7 <- fviz_cluster(km, geom = "point",  data = dummy.dt, choose.vars = c("Fare", "Age")) + ggtitle("k = 7")
+p10 <-fviz_cluster(k10, geom = "point",  data = dummy.dt, choose.vars = c("Fare", "Age")) + ggtitle("k = 10")
+library(gridExtra)
+grid.arrange(p3, p5, p7, p10, nrow = 2)
+
+
+```
+
+Here we see what the different clusters would look like choosing different centers.
